@@ -1,73 +1,60 @@
-Les bibliothèques partagées sont du code compilé destiné à être partagé entre plusieurs différents programmes. Ils sont distribués en tant que fichiers .so dans /usr/lib/.
+A library exports symbols which are the compiled versions of functions, classes and variables. A library has a name called an SONAME which includes a version number. This SONAME version does not necessarily match the public release version number. A program gets compiled against a given SONAME version of the library. If any of the symbols is removed or changes then the version number needs to be changed which forces any packages using that library to be recompiled against the new version. Version numbers are usually set by upstream and we follow them in our binary package names called an ABI number, but sometimes upstreams do not use sensible version numbers and packagers have to keep separate version numbers.
 
-Une bibliothèque exporte des symboles qui sont les versions compilées de fonctions, de classes et de variables. Une bibliothèque possède ce qui s’appelle un SONAME comprenant un numéro de version. Cette version de SONAME ne correspond pas nécessairement au numéro de version publique. Un programme est compilé avec une version SONAME donnée de la bibliothèque. Si l’un des symboles est retiré ou modifié, alors le numéro de version doit être changé, ce qui oblige la recompilation de tous les paquets utilisant cette bibliothèque avec la nouvelle version. Les numéros de version sont généralement fixés par l’amont et nous les suivons dans nos noms de paquets binaires à l’aide d’un nombre ABI, mais parfois les amonts n’utilisent pas de numéros logiques de version et les empaqueteurs doivent conserver des numéros de version séparés.
+Libraries are usually distributed by upstream as standalone releases. Sometimes they are distributed as part of a program. In this case they can be included in the binary package along with the program (this is called bundling) if you do not expect any other programs to use the library, more often they should be split out into separate binary packages.
 
-Les bibliothèques sont généralement distribuées par l’amont sous forme de versions autonomes. Parfois, elles sont distribuées comme partie d’un programme. Dans ce cas, elles peuvent être incluses dans le paquet binaire avec le programme (c’est ce qu’on appelle le regroupement) lorsqu’il n’est pas prévu que d’autres programmes utilisent la bibliothèque. Le plus souvent, elles sont divisées en plusieurs paquets binaires séparés.
+The libraries themselves are put into a binary package named libfoo1 where foo is the name of the library and 1 is the version from the SONAME. Development files from the package, such as header files, needed to compile programs against the library are put into a package called libfoo-dev.
 
-Les bibliothèques elles-mêmes sont mises dans un paquet binaire nommé libfoo1 où foo est le nom de la bibliothèque et 1 la version de SONAME. Les fichiers de développement issus du paquet, tels que les fichiers d’en-tête, nécessaires pour compiler des programmes avec la bibliothèque sont placés dans un paquet appelé libfoo-dev.
-8.1. Un exemple
-
-Nous allons utiliser libnova comme exemple :
+8.1. An Example
+We will use libnova as an example:
 
 $ bzr branch ubuntu:trusty/libnova
 $ sudo apt-get install libnova-dev
-
-Pour trouver le SONAME de la bibliothèque, lancez :
+To find the SONAME of the library run:
 
 $ readelf -a /usr/lib/libnova-0.12.so.2 | grep SONAME
+The SONAME is libnova-0.12.so.2, which matches the file name (usually the case but not always). Here upstream has put the upstream version number as part of the SONAME and given it an ABI version of 2. Library package names should follow the SONAME of the library they contain. The library binary package is called libnova-0.12-2 where libnova-0.12 is the name of the library and 2 is our ABI number.
 
-Le SONAME est libnova-0.12.so.2, qui correspond au nom du fichier (généralement c’est le cas, mais pas toujours). Ici, l’amont a mis le numéro de version comme partie du SONAME et lui a donné 2 comme version d’ABI. Les noms de paquets de bibliothèque devraient suivre le SONAME de la bibliothèque les contenant. Le paquet binaire de bibliothèque s’appelle libnova-0.12-2, où libnova-0.12 est le nom de la bibliothèque et 2 est notre ABI.
+If upstream makes incompatible changes to their library they will have to reversion their SONAME and we will have to rename our library. Any other packages using our library package will need to recompiled against the new version, this is called a transition and can take some effort. Hopefully our ABI number will continue to match upstream’s SONAME but sometimes they introduce incompatibilities without changing their version number and we will need to change ours.
 
-Si l’amont apporte des modifications incompatibles avec leur bibliothèque, il devra revoir la version de SONAME et nous devrons renommer notre bibliothèque. Tous les autres paquets utilisant notre paquet de bibliothèque devront être recompilés à la nouvelle version, c’est ce qu’on appelle une transition et peut demander un certain travail. Heureusement, notre nombre ABI continuera à correspondre au SONAME des amonts, mais parfois ils introduisent des incompatibilités sans changer leurs numéros de version et nous devrons changer les nôtres.
-
-En regardant dans debian/libnova-0.12-2.install, nous voyons qu’il comprend deux fichiers :
+Looking in debian/libnova-0.12-2.install we see it includes two files:
 
 usr/lib/libnova-0.12.so.2
 usr/lib/libnova-0.12.so.2.0.0
+The last one is the actual library, complete with minor and point version number. The first one is a symlink which points to the actual library. The symlink is what programs using the library will look for, the running programs do not care about the minor version number.
 
-Le dernier est la bibliothèque réelle, se terminant par un numéro de version mineur et un point. Le premier est un lien symbolique pointant vers la bibliothèque réelle. Le lien symbolique est ce que les programmes utilisant la bibliothèque rechercheront, les programmes en cours d’exécution ne se souciant pas du numéro de version mineur.
-
-Libnova-dev.install inclut tous les fichiers nécessaires pour compiler un programme utilisant cette bibliothèque. Les fichiers d’en-tête, un binaire de configuration, le fichier .la d’utilitaires bibliothèque et libnova.so qui est un autre lien symbolique pointant vers la bibliothèque, les programmes compilant avec cette bibliothèque ne se souciant pas du numéro de version majeur (même si le binaire qu’ils compilent le feront).
+libnova-dev.install includes all the files needed to compile a program with this library. Header files, a config binary, the .la libtool file and libnova.so which is another symlink pointing at the library, programs compiling against the library do not care about the major version number (although the binary they compile into will).
 
 .la libtool files are needed on some non-Linux systems with poor library support but usually cause more problems than they solve on Debian systems. It is a current Debian goal to remove .la files and we should help with this.
-8.2. Les bibliothèques statiques
 
-Les paquets -dev délivrent aussi usr/lib/libnova.a. Il s’agit d’une bibliothèque statique, une alternative à la bibliothèque partagée. Tout programme compilé avec la bibliothèque statique comprendra le répertoire du code en lui-même. Cela contourne le souci de la compatibilité binaire de la bibliothèque. Mais cela signifie aussi que tous les bogues, y compris les problèmes de sécurité, ne seront pas mis à jour avec la bibliothèque jusqu’à ce que le programme soit recompilé. Pour cette raison, l’usage de programmes utilisant des bibliothèques statiques est déconseillé.
-8.3. Les fichiers de symboles
+8.2. Static Libraries
+The -dev package also ships usr/lib/libnova.a. This is a static library, an alternative to the shared library. Any program compiled against the static library will include the code directory into itself. This gets round worrying about binary compatibility of the library. However it also means that any bugs, including security issues, will not be updated along with the library until the program is recompiled. For this reason programs using static libraries are discouraged.
 
-Quand un paquet est construit à partir d’une bibliothèque, le mécanisme shlibs ajoute une dépendance de paquet sur cette bibliothèque. C’est pourquoi de nombreux programmes auront Depends: ${shlibs:Depends} dans debian/control. Ceci est remplacé par les dépendances de bibliothèque à la compilation. Cependant shlibs peut seulement le faire dépendre du numéro de version majeure ABI, 2 dans notre exemple libnova. Si de nouveaux symboles sont ajoutés à libnova 2.1, un programme utilisant ces symboles pourrait toujours être installé avec libnova ABI 2.0, ce qui provoquerait son plantage.
+8.3. Symbol Files
+When a package builds against a library the shlibs mechanism will add a package dependency on that library. This is why most programs will have Depends: ${shlibs:Depends} in debian/control. That gets replaced with the library dependencies at build time. However shlibs can only make it depend on the major ABI version number, 2 in our libnova example, so if new symbols get added in libnova 2.1 a program using these symbols could still be installed against libnova ABI 2.0 which would then crash.
 
-Pour rendre les dépendances de bibliothèques plus précises, nous gardons les fichiers .symbols qui répertorient tous les symboles d’une bibliothèque et la version à laquelle ils sont apparus.
+To make the library dependencies more precise we keep .symbols files that list all the symbols in a library and the version they appeared in.
 
-libnova n’a pas de fichier de symboles, nous pouvons donc en créer un. Commencez par la compilation du paquet :
+libnova has no symbols file so we can create one. Start by compiling the package:
 
 $ bzr builddeb -- -nc
-
-Le -nc terminera la compilation sans supprimer les fichiers de construction. Modifiez le fichier compilé et exécutez dpkg-gensymbols pour le paquet de bibliothèque :
+The -nc will cause it to finish at the end of compilation without removing the built files. Change to the build and run dpkg-gensymbols for the library package:
 
 $ cd ../build-area/libnova-0.12.2/
 $ dpkg-gensymbols -plibnova-0.12-2 > symbols.diff
-
-Cela crée un fichier diff que vous pouvez rendre automatiquement applicable :
+This makes a diff file which you can self apply:
 
 $ patch -p0 < symbols.diff
-
-Ce qui va créer un fichier nommé de manière similaire à dpkg-gensymbolsnY_WWI listant tous les symboles. Il répertorie également la version actuelle du paquet. Nous pouvons supprimer la version d’empaquetage de celles indiquées dans le fichier de symboles car de nouveaux symboles ne sont généralement pas ajoutés par de nouvelles versions d’empaquetage, mais par les développeurs de l’amont :
+Which will create a file named similar to dpkg-gensymbolsnY_WWI that lists all the symbols. It also lists the current package version. We can remove the packaging version from that listed in the symbols file because new symbols are not generally added by new packaging versions, but by the upstream developers:
 
 $ sed -i s,-0ubuntu2,, dpkg-gensymbolsnY_WWI
-
-Maintenant, déplacez le fichier à sa place, soumettez et faites un test de compilation :
+Now move the file into its location, commit and do a test build:
 
 $ mv dpkg-gensymbolsnY_WWI ../../libnova/debian/libnova-0.12-2.symbols
 $ cd ../../libnova
 $ bzr add debian/libnova-0.12-2.symbols
 $ bzr commit -m "add symbols file"
 $ bzr builddeb
+If it successfully compiles the symbols file is correct. With the next upstream version of libnova you would run dpkg-gensymbols again and it will give a diff to update the symbols file.
 
-Si la compilation s’achève avec succès, le fichier de symboles est correct. Avec la prochaine version amont de libnova, vous devrez exécuter dpkg-gensymbols à nouveau et cela vous donnera un fichier diff pour mettre à jour le fichier de symboles.
-8.4. Les fichiers C++ de la bibliothèque de symboles
-
+8.4. C++ Library Symbols Files
 C++ has even more exacting standards of binary compatibility than C. The Debian Qt/KDE Team maintain some scripts to handle this, see their Working with symbols files page for how to use them.
-8.5. Lectures complémentaires
-
-Junichi Uekawa’s Debian Library Packaging Guide goes into this topic in more detail.
